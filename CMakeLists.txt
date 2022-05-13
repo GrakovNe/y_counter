@@ -31,4 +31,4 @@ add_custom_target(
 )
 
 link_directories(src/lib)
-add_executable(Z_DUMMY_TARGET ${SRC_LIST})
+add_executable(Z_DUMMY_TARGET ${SRC_LIST} src/ui.h)
