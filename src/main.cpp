@@ -49,24 +49,17 @@ void configure_wlan() {
     wm.setHttpPort(8080);
 
     WiFi.mode(WIFI_STA);
+    wm.setCaptivePortalEnable(false);
+    wm.setConfigPortalBlocking(false);
+
     if (wm.autoConnect(DEVICE_NAME)) {
-        wm.setConfigPortalBlocking(false);
         wm.startConfigPortal();
-
-        restServerRouting();
-        httpServer.begin();
-
-        if (MDNS.begin(DEVICE_NAME, WiFi.localIP())) {
-            Serial.println("MDNS responder started");
-        } else {
-            Serial.println("MDNS Failed");
-        }
-
-    } else {
-        Serial.println("Failed to connect, resetting...");
-        wm.resetSettings();
-        EspClass::restart();
     }
+
+    restServerRouting();
+    httpServer.begin();
+
+    MDNS.begin(DEVICE_NAME, WiFi.localIP());
 }
 
 void init_sensor() {
