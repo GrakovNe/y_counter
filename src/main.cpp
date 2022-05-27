@@ -13,7 +13,6 @@ ClimateGuard_RadSens1v2 radSens(RS_DEFAULT_I2C_ADDRESS);
 
 float staticIntensity = 0;
 float dynamicIntensity = 0;
-uint32_t pulseCounter = 0;
 
 unsigned long counter = 0;
 
@@ -23,8 +22,6 @@ String to_json() {
            String(staticIntensity) +
            ",\"dynamicIntensity\": " +
            String(dynamicIntensity) +
-           ",\"pulseCounter\": " +
-           String(pulseCounter) +
            "}";
 }
 
@@ -72,7 +69,6 @@ void init_sensor() {
 void update_data() {
     dynamicIntensity = radSens.getRadIntensyDynamic();
     staticIntensity = radSens.getRadIntensyStatic();
-    pulseCounter = radSens.getNumberOfPulses();
 }
 
 void update_and_publish() {
