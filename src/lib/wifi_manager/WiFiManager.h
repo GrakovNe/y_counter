@@ -482,7 +482,7 @@ class WiFiManager
     int32_t       _apChannel              = 0; // default channel to use for ap, 0 for auto
     bool          _apHidden               = false; // store softap hidden value
     uint16_t      _httpPort               = 80; // port for webserver
-    // uint8_t       _retryCount             = 0; // counter for retries, probably not needed if synchronous
+    // uint8_t       _retryCount             = 0; // current_values_counter for retries, probably not needed if synchronous
     uint8_t       _connectRetries         = 1; // number of sta connect retries, force reconnect, wait loop (connectimeout) does not always work and first disconnect bails
     bool          _aggresiveReconn        = false; // use an agrressive reconnect strategy, WILL delay conxs
                                                    // on some conn failure modes will add delays and many retries to work around esp and ap bugs, ie, anti de-auth protections

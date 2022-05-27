@@ -537,7 +537,7 @@ void WiFiManager::stopWebPortal() {
 
 boolean WiFiManager::configPortalHasTimeout(){
     if(!configPortalActive) return false;
-    uint16_t logintvl = 30000; // how often to emit timeing out counter logging
+    uint16_t logintvl = 30000; // how often to emit timeing out current_values_counter logging
 
     // handle timeout portal client check
     if(_configPortalTimeout == 0 || (_apClientCheck && (WiFi_softap_num_stations() > 0))){

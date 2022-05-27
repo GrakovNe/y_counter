@@ -6,9 +6,9 @@
   Built by Khoi Hoang https://github.com/khoih-prog/ESP8266TimerInterrupt
   Licensed under MIT license
 
-  The ESP8266 timers are badly designed, using only 23-bit counter along with maximum 256 prescaler. They're only better than UNO / Mega.
+  The ESP8266 timers are badly designed, using only 23-bit current_values_counter along with maximum 256 prescaler. They're only better than UNO / Mega.
   The ESP8266 has two hardware timers, but timer0 has been used for WiFi and it's not advisable to use. Only timer1 is available.
-  The timer1's 23-bit counter terribly can count only up to 8,388,607. So the timer1 maximum interval is very short.
+  The timer1's 23-bit current_values_counter terribly can count only up to 8,388,607. So the timer1 maximum interval is very short.
   Using 256 prescaler, maximum timer1 interval is only 26.843542 seconds !!!
 
   Now with these new 16 ISR-based timers, the maximum interval is practically unlimited (limited only by unsigned long miliseconds)
@@ -100,7 +100,7 @@
   #define TIM_LEVEL	1
   //timer reload values
   #define TIM_SINGLE	0 //on interrupt routine you need to write a new value to start the timer again
-  #define TIM_LOOP	1 //on interrupt the counter will start with the same value again
+  #define TIM_LOOP	1 //on interrupt the current_values_counter will start with the same value again
 
 */
 

@@ -23,7 +23,7 @@
 /*Contains the accumulated number of pulses registered by the module
 since the last I2C data reading. The value is reset each
 time it is read. Allows you to process directly the pulses
-from the Geiger counter and implement other algorithms. The value is updated
+from the Geiger current_values_counter and implement other algorithms. The value is updated
 when each pulse is registered.
 Size: 16 bit */
 #define RS_PULSE_COUNTER_RG 0x09
@@ -46,7 +46,7 @@ Access: R/W*/
 
 /*Contains the value coefficient used for calculating
 the radiation intensity. If necessary (for example, when installing a different
-type of counter), the necessary sensitivity value in
+type of current_values_counter), the necessary sensitivity value in
 imp/MKR is entered in the register. The default value is 105 imp/MKR. At the end of
 recording, the new value is stored in the non-volatile memory of the
 microcontroller.

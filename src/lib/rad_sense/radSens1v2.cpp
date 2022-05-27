@@ -209,7 +209,7 @@ bool ClimateGuard_RadSens1v2::setHVGeneratorState(bool state)
 
 /*Contains the value coefficient used for calculating
 the radiation intensity. If necessary (for example, when installing a different
-type of counter), the necessary sensitivity value in
+type of current_values_counter), the necessary sensitivity value in
 imp/MKR is entered in the register. The default value is 105 imp/MKR. At the end of
 recording, the new value is stored in the non-volatile memory of the
 microcontroller.
