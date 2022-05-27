@@ -18,32 +18,54 @@ void persist_array(int address, float array[], int size) {
     }
 }
 
+void persist_dynamic_intensity(float dynamicIntensity) {
+    dynamic_intensity_history[dynamic_intensity_offset] = dynamicIntensity;
+
+    dynamic_intensity_offset = dynamic_intensity_offset % DYNAMIC_INTENSITY_CAPACITY;
+
+    EEPROM.begin(4096);
+    persist_array(DYNAMIC_INTENSITY_ADDRESS, static_intensity_history, DYNAMIC_INTENSITY_CAPACITY);
+
+    dynamic_intensity_offset++;
+    EEPROM.put(DYNAMIC_INTENSITY_OFFSET_ADDRESS, dynamic_intensity_offset);
+    EEPROM.commit();
+}
+
 void persist_static_intensity(float staticIntensity) {
-    static_intensity_history[current_offset] = staticIntensity;
+    static_intensity_history[static_intensity_offset] = staticIntensity;
 
-    current_offset = (current_offset + 1) % STATIC_INTENSITY_CAPACITY;
+    static_intensity_offset = static_intensity_offset % STATIC_INTENSITY_CAPACITY;
 
-    EEPROM.begin(2048);
-    EEPROM.put(OFFSET_ADDRESS, current_offset);
+    EEPROM.begin(4096);
     persist_array(STATIC_INTENSITY_ADDRESS, static_intensity_history, STATIC_INTENSITY_CAPACITY);
+
+
+    static_intensity_offset++;
+    EEPROM.put(STATIC_INTENSITY_OFFSET_ADDRESS, static_intensity_offset);
     EEPROM.commit();
 }
 
 void init_persistence() {
-    EEPROM.begin(2048);
+    EEPROM.begin(4096);
 
     if (!EEPROM.read(NON_FIRST_RUN_ADDRESS)) {
-        EEPROM.begin(2048);
+        EEPROM.begin(4096);
+
 
         persist_static_intensity(0);
-        EEPROM.put(NON_FIRST_RUN_ADDRESS, true);
+        persist_dynamic_intensity(0);
 
+        EEPROM.put(NON_FIRST_RUN_ADDRESS, true);
+        EEPROM.put(STATIC_INTENSITY_OFFSET_ADDRESS, 0);
+        EEPROM.put(DYNAMIC_INTENSITY_OFFSET_ADDRESS, 0);
         EEPROM.commit();
     }
 
-    EEPROM.begin(2048);
-    EEPROM.get(OFFSET_ADDRESS, current_offset);
+    EEPROM.begin(4096);
+    EEPROM.get(STATIC_INTENSITY_OFFSET_ADDRESS, static_intensity_offset);
+    EEPROM.get(DYNAMIC_INTENSITY_OFFSET_ADDRESS, dynamic_intensity_offset);
 
     read_array(STATIC_INTENSITY_ADDRESS, static_intensity_history, STATIC_INTENSITY_CAPACITY);
+    read_array(DYNAMIC_INTENSITY_ADDRESS, dynamic_intensity_history, DYNAMIC_INTENSITY_CAPACITY);
     EEPROM.end();
 }

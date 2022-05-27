@@ -18,8 +18,11 @@ float dynamicIntensity = 0;
 unsigned long current_timer_counter = 0;
 unsigned long historical_timer_counter = 0;
 
-long current_offset;
+long static_intensity_offset;
+long dynamic_intensity_offset;
+
 float static_intensity_history[STATIC_INTENSITY_CAPACITY];
+float dynamic_intensity_history[STATIC_INTENSITY_CAPACITY];
 
 String array_to_string(float array[], int size) {
     String result = "[";
@@ -37,10 +40,14 @@ String array_to_string(float array[], int size) {
 
 String historical_values_to_json() {
     return "{"
-           "current_offset\": " +
-           String(current_offset) +
-           ",\"raw_data\": " +
+           "\"static_intensity_offset\": " +
+           String(static_intensity_offset) +
+           ",\"dynamic_intensity_offset\": " +
+           String(dynamic_intensity_offset) +
+           ",\"static_intensity\": " +
            array_to_string(static_intensity_history, STATIC_INTENSITY_CAPACITY) +
+           ",\"dynamic_intensity\": " +
+           array_to_string(dynamic_intensity_history, DYNAMIC_INTENSITY_CAPACITY) +
            "}";
 }
 
@@ -130,8 +137,9 @@ void loop() {
         current_timer_counter = millis();
     }
 
-    if (millis() - historical_timer_counter >= 5000 * 60) {
+    if (millis() - historical_timer_counter >= 5 * 1000 * 60) {
         persist_static_intensity(staticIntensity);
+        persist_dynamic_intensity(dynamicIntensity);
         historical_timer_counter = millis();
     }
 }
