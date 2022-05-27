@@ -51,7 +51,6 @@ void init_persistence() {
     if (!EEPROM.read(NON_FIRST_RUN_ADDRESS)) {
         EEPROM.begin(4096);
 
-
         persist_static_intensity(0);
         persist_dynamic_intensity(0);
 
