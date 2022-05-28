@@ -116,10 +116,35 @@
 </div>
 
 <script>
-    const counter_data_name = "y_meter_data"
-    const counter_labels_name = "y_meter_labels"
-    const counter_colors_name = "y_meter_colors"
+    const host = ""
+    const bar_values_size = 60
     const metering_type_name = "y_meter_metering_type"
+
+    let data = []
+    let labels = []
+    let colors = []
+
+    function displayHistory() {
+        fetch(host + '/history')
+            .then((response) => {
+                return response.json()
+            })
+            .then((data) => {
+                return data[fetchMeteringType()];
+            })
+            .then((value) => {
+                let history = value.slice(-bar_values_size)
+                let timestamp = new Date().getTime() - history.length * 5 * 60 * 1000
+
+                history.forEach(element => {
+                    let today = new Date(timestamp)
+                    let date = formatTimeUnit(today.getHours()) + ":" + formatTimeUnit(today.getMinutes()) + ":" + formatTimeUnit(today.getSeconds())
+
+                    pushValue(date, element);
+                    timestamp += 5 * 60 * 1000
+                })
+            });
+    }
 
     function fetchMeteringType() {
         if (localStorage.getItem(metering_type_name) == null) {
@@ -133,26 +158,20 @@
         localStorage.setItem(metering_type_name, value)
     }
 
-
-    function fetchArray(name) {
-        if (localStorage.getItem(name) == null) {
-            localStorage.setItem(name, '[]')
+    function pushValue(date, value) {
+        if (labels.length > bar_values_size) {
+            labels.shift()
+            data.shift()
+            colors.shift()
         }
 
-        return JSON.parse(localStorage.getItem(name))
-    }
+        data.push(value)
+        labels.push(date)
+        colors.push(getColor(value))
 
-    function updateArray(name, value) {
-        localStorage.setItem(name, JSON.stringify(value))
-    }
-
-    function updateCurrentMeasurements() {
-        let values = fetchArray(counter_data_name)
-        let value = values[values.length - 1]
-
-        if (value !== undefined) {
-            document.getElementById("current-radiation-level").textContent = value.toFixed(1) + " μR/Hr"
-        }
+        document.getElementById("current-radiation-level").textContent = value.toFixed(1) + " μR/Hr"
+        chart.data.datasets[0].backgroundColor = colors
+        chart.update()
     }
 
     function getColor(value) {
@@ -183,12 +202,6 @@
 
         return colors
     }
-
-    let data = fetchArray(counter_data_name)
-    let labels = fetchArray(counter_labels_name)
-    let colors = fetchArray(counter_colors_name)
-
-    updateCurrentMeasurements()
 
     if (fetchMeteringType() === 'staticIntensity') {
         document.getElementById('metering_type_static').setAttribute("checked", "true")
@@ -238,37 +251,21 @@
         }
     });
 
+    displayHistory()
 
     setInterval(function () {
-        fetch('http://ymeter.local/statistic')
+        fetch(host + '/statistic')
             .then((response) => {
                 return response.json()
             })
             .then((data) => {
-                console.log(fetchMeteringType())
                 return data[fetchMeteringType()];
             })
             .then((value) => {
                 let today = new Date();
                 let date = formatTimeUnit(today.getHours()) + ":" + formatTimeUnit(today.getMinutes()) + ":" + formatTimeUnit(today.getSeconds())
 
-                if (labels.length > 60) {
-                    labels.shift()
-                    data.shift()
-                    colors.shift()
-                }
-
-                data.push(value)
-                labels.push(date)
-                colors.push(getColor(value))
-
-                updateArray(counter_data_name, data)
-                updateArray(counter_labels_name, labels)
-                updateArray(counter_colors_name, colors)
-                chart.data.datasets[0].backgroundColor = colors
-
-                updateCurrentMeasurements()
-                chart.update()
+                pushValue(date, value)
             });
     }, 1000);
 
