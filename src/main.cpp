@@ -22,10 +22,12 @@ long static_intensity_offset;
 long dynamic_intensity_offset;
 
 float static_intensity_history[STATIC_INTENSITY_CAPACITY];
-float dynamic_intensity_history[STATIC_INTENSITY_CAPACITY];
+float dynamic_intensity_history[DYNAMIC_INTENSITY_CAPACITY];
+
+String static_intensity_history_cache = "[]";
+String dynamic_intensity_history_cache = "[]";
 
 String offset_array_to_string(float array[], int size, long offset) {
-
     float offset_array[size];
 
     int index = 0;
@@ -52,16 +54,26 @@ String offset_array_to_string(float array[], int size, long offset) {
     return result;
 }
 
+void update_cache() {
+    static_intensity_history_cache = offset_array_to_string(
+            static_intensity_history,
+            STATIC_INTENSITY_CAPACITY,
+            static_intensity_offset
+    );
+
+    dynamic_intensity_history_cache = offset_array_to_string(
+            dynamic_intensity_history,
+            DYNAMIC_INTENSITY_CAPACITY,
+            dynamic_intensity_offset
+    );
+}
+
 String historical_values_to_json() {
     return "{"
-           "\"staticIntensityOffset\": " +
-           String(static_intensity_offset) +
-           ",\"dynamicIntensityOffset\": " +
-           String(dynamic_intensity_offset) +
-           ",\"staticIntensity\": " +
-           offset_array_to_string(static_intensity_history, STATIC_INTENSITY_CAPACITY, static_intensity_offset) +
+           "\"staticIntensity\": " +
+           static_intensity_history_cache +
            ",\"dynamicIntensity\": " +
-           offset_array_to_string(dynamic_intensity_history, DYNAMIC_INTENSITY_CAPACITY, dynamic_intensity_offset) +
+           dynamic_intensity_history_cache +
            "}";
 }
 
@@ -155,5 +167,7 @@ void loop() {
         persist_static_intensity(staticIntensity);
         persist_dynamic_intensity(dynamicIntensity);
         historical_timer_counter = millis();
+
+        update_cache();
     }
 }
