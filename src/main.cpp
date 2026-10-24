@@ -1,173 +1,158 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2026 GrakovNe
+ */
 #include <Arduino.h>
-#include <Wire.h>
+#include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
-#include "lib/rad_sense/radSens1v2.h"
-#include "lib/wifi_manager/WiFiManager.h"
-#include "ui.h"
-#include "measurement_history_service.h"
 
-#define DEVICE_NAME "ymeter"
+#include "appconf.h"
+#include "fresh.h"
+#include "history.h"
+#include "log.h"
+#include "mqtt_mgr.h"
+#include "radsens.h"
+#include "settings.h"
+#include "time_mgr.h"
+#include "web_server.h"
+#include "wifi_mgr.h"
 
-ESP8266WebServer httpServer(80);
-WiFiManager wm;
-ClimateGuard_RadSens1v2 radSens(RS_DEFAULT_I2C_ADDRESS);
+static const char *TAG = "main";
 
-float staticIntensity = 0;
-float dynamicIntensity = 0;
+#ifndef APP_VER
+#define APP_VER "dev"
+#endif
 
-unsigned long current_timer_counter = 0;
-unsigned long historical_timer_counter = 0;
+#define SUMMARY_PERIOD_MS 5000u
+#define SENSOR_SENSITIVITY 105 /* imp/uR, the RadSens default for SBM-20 */
 
-long static_intensity_offset;
-long dynamic_intensity_offset;
+static appconf_t s_cfg;
+static char s_device_id[5];
+static bool s_mdns_up;
+static uint32_t s_mdns_retry_at;
+static uint32_t s_last_summary;
 
-float static_intensity_history[STATIC_INTENSITY_CAPACITY];
-float dynamic_intensity_history[DYNAMIC_INTENSITY_CAPACITY];
-
-String static_intensity_history_cache = "[]";
-String dynamic_intensity_history_cache = "[]";
-
-String offset_array_to_string(float array[], int size, long offset) {
-    float offset_array[size];
-
-    int index = 0;
-    for (int i = offset; i < size; i++) {
-        offset_array[index] = array[i];
-        index++;
+/* The previous firmware kept the Wi-Fi credentials in the SDK's flash
+ * area. On the first boot without a settings file they are moved over. */
+static void import_legacy_wifi(void)
+{
+    if (settings_exist()) {
+        return;
     }
-
-    for (int i = 0; i < offset; i++) {
-        offset_array[index] = array[i];
-        index++;
+    String ssid = WiFi.SSID();
+    String psk = WiFi.psk();
+    if (ssid.length() == 0 || ssid.length() > APPCONF_SSID_MAX ||
+        psk.length() > APPCONF_PASS_MAX) {
+        return;
     }
-
-    String result = "[";
-
-    for (int i = 0; i < size - 1; i++) {
-        result += String(offset_array[i]);
-        result += ", ";
+    strlcpy(s_cfg.wifi_ssid, ssid.c_str(), sizeof s_cfg.wifi_ssid);
+    strlcpy(s_cfg.wifi_password, psk.c_str(), sizeof s_cfg.wifi_password);
+    char err[128];
+    if (!appconf_validate(&s_cfg, err, sizeof err)) {
+        LOGW(TAG, "SDK credentials for \"%s\" not imported: %s", s_cfg.wifi_ssid, err);
+        s_cfg.wifi_ssid[0] = '\0';
+        s_cfg.wifi_password[0] = '\0';
+        return;
     }
-
-    result += String(offset_array[size - 1]);
-    result += "]";
-
-    return result;
-}
-
-void update_cache() {
-    static_intensity_history_cache = offset_array_to_string(
-            static_intensity_history,
-            STATIC_INTENSITY_CAPACITY,
-            static_intensity_offset
-    );
-
-    dynamic_intensity_history_cache = offset_array_to_string(
-            dynamic_intensity_history,
-            DYNAMIC_INTENSITY_CAPACITY,
-            dynamic_intensity_offset
-    );
-}
-
-String historical_values_to_json() {
-    return "{"
-           "\"staticIntensity\": " +
-           static_intensity_history_cache +
-           ",\"dynamicIntensity\": " +
-           dynamic_intensity_history_cache +
-           "}";
-}
-
-String current_values_to_json() {
-    return "{"
-           "\"staticIntensity\": " +
-           String(staticIntensity) +
-           ",\"dynamicIntensity\": " +
-           String(dynamicIntensity) +
-           "}";
-}
-
-void restServerRouting() {
-    httpServer.on("/statistic", HTTP_GET, []() {
-        httpServer.sendHeader("Access-Control-Allow-Origin", "*");
-        httpServer.send(200, F("application/json"), current_values_to_json());
-    });
-
-    httpServer.on("/history", HTTP_GET, []() {
-        httpServer.sendHeader("Access-Control-Allow-Origin", "*");
-        httpServer.send(200, F("application/json"), historical_values_to_json());
-    });
-
-    httpServer.onNotFound([]() {
-        httpServer.sendHeader("Access-Control-Allow-Origin", "*");
-        httpServer.send(200, F("text/html; charset=utf-8"), mainPage);
-    });
-
-}
-
-void configure_wlan() {
-    wm.setTitle(DEVICE_NAME);
-
-    WiFi.hostname(DEVICE_NAME);
-    wm.setHostname(DEVICE_NAME);
-    wm.setHttpPort(8080);
-
-    WiFi.mode(WIFI_STA);
-    wm.setCaptivePortalEnable(false);
-    wm.setConfigPortalBlocking(false);
-
-    if (wm.autoConnect(DEVICE_NAME)) {
-        wm.startConfigPortal();
+    if (settings_save(&s_cfg)) {
+        LOGI(TAG, "imported Wi-Fi credentials for \"%s\" from the SDK", s_cfg.wifi_ssid);
     }
-
-    restServerRouting();
-    httpServer.begin();
-
-    MDNS.begin(DEVICE_NAME, WiFi.localIP());
 }
 
-void init_sensor() {
-    radSens.radSens_init();
-    radSens.setSensitivity(105);
-    radSens.setHVGeneratorState(true);
-    radSens.setLedState(true);
-}
-
-void update_data() {
-    dynamicIntensity = radSens.getRadIntensyDynamic();
-    staticIntensity = radSens.getRadIntensyStatic();
-}
-
-void update_and_publish() {
-    update_data();
-    Serial.println(current_values_to_json());
-}
-
-void setup() {
-    Serial.begin(115200);
-    init_persistence();
-
-    configure_wlan();
-    init_sensor();
-
-    current_timer_counter = millis();
-    historical_timer_counter = millis();
-}
-
-void loop() {
-    wm.process();
-    httpServer.handleClient();
+static void mdns_tick(void)
+{
+    if (!wifi_mgr_sta_connected()) {
+        return;
+    }
+    if (!s_mdns_up) {
+        if ((int32_t)(millis() - s_mdns_retry_at) < 0) {
+            return;
+        }
+        if (MDNS.begin(s_cfg.hostname)) {
+            MDNS.addService("http", "tcp", 80);
+            s_mdns_up = true;
+            LOGI(TAG, "mdns: http://%s.local/", s_cfg.hostname);
+        } else {
+            LOGW(TAG, "mdns start failed, retrying in 10 s");
+            s_mdns_retry_at = millis() + 10000;
+        }
+        return;
+    }
     MDNS.update();
+}
 
-    if (millis() - current_timer_counter >= 1000) {
-        update_and_publish();
-        current_timer_counter = millis();
+static void summary(void)
+{
+    radsens_reading_t r;
+    radsens_get_reading(&r);
+    uint32_t heap_free;
+    uint16_t heap_max;
+    uint8_t heap_frag;
+    ESP.getHeapStats(&heap_free, &heap_max, &heap_frag);
+
+    if (!r.connected) {
+        LOGI(TAG, "waiting for sensor... (heap %u, mode %s)", heap_free,
+             wifi_mgr_mode_name(wifi_mgr_mode()));
+        return;
     }
+    char vals[64] = "n/a";
+    if (reading_fresh(&r)) {
+        snprintf(vals, sizeof vals, "static %.1f dynamic %.1f uR/h (%lu s ago)",
+                 (double)r.static_urh, (double)r.dynamic_urh, (unsigned long)(r.age_ms / 1000u));
+    }
+    LOGI(TAG, "summary: %s, reads %lu ok / %lu bad, heap %u (max %u, frag %u%%), wifi %s "
+              "(sdk %d, ch %d, %d dBm)",
+         vals, (unsigned long)r.reads_ok, (unsigned long)r.reads_bad, heap_free, heap_max,
+         heap_frag, wifi_mgr_mode_name(wifi_mgr_mode()), (int)WiFi.status(), WiFi.channel(),
+         (int)WiFi.RSSI());
+}
 
-    if (millis() - historical_timer_counter >= 5 * 1000 * 60) {
-        persist_static_intensity(staticIntensity);
-        persist_dynamic_intensity(dynamicIntensity);
-        historical_timer_counter = millis();
+void setup()
+{
+    Serial.begin(115200);
+    Serial.println();
+    LOGI(TAG, "Gamma Meter firmware %s (core %s, sdk %s, built %s %s)", APP_VER,
+         ESP.getCoreVersion().c_str(), ESP.getSdkVersion(), __DATE__, __TIME__);
+    LOGI(TAG, "reset reason: %s", ESP.getResetReason().c_str());
 
-        update_cache();
+    settings_fs_init();
+
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    appconf_device_id(mac, s_device_id);
+
+    appconf_defaults(&s_cfg, s_device_id);
+    import_legacy_wifi();
+    settings_load(&s_cfg, s_device_id);
+    LOGI(TAG, "device %s: name \"%s\", hostname %s.local", s_device_id, s_cfg.device_name,
+         s_cfg.hostname);
+    LOGI(TAG, "wifi: %s, mqtt: %s, ntp: %s",
+         s_cfg.wifi_ssid[0] != '\0' ? s_cfg.wifi_ssid : "not configured",
+         s_cfg.mqtt_enabled ? s_cfg.mqtt_host : "disabled", s_cfg.ntp_server);
+
+    const radsens_config_t rcfg = { .sensitivity = SENSOR_SENSITIVITY, .led = true, .poll_ms = 1000 };
+    radsens_start(&rcfg);
+
+    wifi_mgr_start(&s_cfg, s_device_id);
+    web_server_start(&s_cfg, s_device_id);
+    time_mgr_start(&s_cfg);
+    history_start();
+    mqtt_mgr_start(&s_cfg, s_device_id);
+}
+
+void loop()
+{
+    wifi_mgr_tick();
+    web_server_tick();
+    mdns_tick();
+    radsens_tick();
+    history_tick();
+    mqtt_mgr_tick();
+    time_mgr_tick();
+
+    uint32_t now = millis();
+    if (now - s_last_summary >= SUMMARY_PERIOD_MS) {
+        s_last_summary = now;
+        summary();
     }
 }

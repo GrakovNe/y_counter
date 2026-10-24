@@ -1,3 +1,9 @@
 .pio
 CMakeListsPrivate.txt
-cmake-build-*/ 
+cmake-build-*/
+.idea/
+.vscode/
+*.pyc
+test/host/test_appconf
+test/host/test_history_ring
+test/host/*.dSYM/
